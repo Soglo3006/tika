@@ -23,6 +23,7 @@ import java.net.Socket;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Locale;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -51,7 +52,7 @@ final class IFT3913SecurityExamples {
     static ResultSet sqlExample(Connection connection,
                                 String documentName)
             throws SQLException {
-        String query = String.format(
+        String query = String.format(Locale.ROOT,
                 "SELECT * FROM documents WHERE name = '%s'",
                 documentName
         );
