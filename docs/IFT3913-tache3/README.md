@@ -104,23 +104,34 @@ Cette méthode de comparaison par `(check_id, path)` suffit à identifier ces se
 
 Détails, protocole reproductible et liste des résultats : [**Comparaison Semgrep avant/après**](comparaison-semgrep.md).
 
-## 5. Rickroll réutilisable dans la CI
+## 5. Rickroll réutilisable, uniquement après un échec de test
 
 L'action composite est enregistrée dans `.github/actions/rickroll/action.yml`. Elle écrit une notice GitHub Actions contenant le lien vers la vidéo Rickroll et le message `A test failed. Rickroll activated!`.
 
-Le workflow l'appelle conditionnellement après Maven :
+La condition initiale se basait uniquement sur l'échec de l'étape Maven. Elle a été améliorée afin de ne pas lancer le Rickroll pour les échecs sans rapport avec des tests, tels que Checkstyle, Forbidden APIs ou la compilation.
+
+Le script `.github/scripts/check_failed_tests.py` parcourt les rapports JUnit XML générés par Maven Surefire et Failsafe (`**/surefire-reports/TEST-*.xml` et `**/failsafe-reports/TEST-*.xml`). Il vérifie les attributs `failures` et `errors` des suites de tests. Si l'un d'eux est supérieur à zéro, le script définit la sortie GitHub Actions `test_failed=true`. Sinon, la sortie vaut `false`.
+
+Le workflow exécute ensuite :
 
 ```yaml
-- name: Rickroll on Maven failure
+- name: Detect failed Maven tests
+  id: detect_failed_tests
   if: ${{ failure() && steps.maven_tests.outcome == 'failure' }}
+  run: python3 .github/scripts/check_failed_tests.py
+
+- name: Rickroll on failed Maven tests
+  if: ${{ failure() && steps.detect_failed_tests.outputs.test_failed == 'true' }}
   uses: ./.github/actions/rickroll
 ```
 
-Une variante équivalente est définie dans le job E2E. Le fait d'avoir une action locale composite évite de dépendre d'une action humoristique tierce.
+La même logique s'applique au job E2E.
 
-**Validation :** les logs montrent que `Rickroll surprise` s'exécute et émet la notice après un échec Maven : [preuve de l'action exécutée](https://github.com/Soglo3006/tika/actions/runs/44014212687/job/133808114793). Le message correspond à une notification/lien dans les logs, et non à une vidéo qui se lance automatiquement.
+**Justification :** le rapport Surefire/Failsafe apporte une preuve qu'un cas de test a réellement échoué ou a produit une erreur, ce qui répond plus précisément à la consigne qu'un déclenchement sur n'importe quel échec Maven. En l'absence de rapport de test en échec, le Rickroll ne se déclenche pas.
 
-**Limite :** la condition actuelle se base sur l'échec de l'étape Maven entière ; elle se déclenche aussi en cas de problème de compilation ou d'un contrôle préalable aux tests. Cela prouve l'exécution conditionnelle, mais **pas encore spécifiquement la réaction à un test unitaire en échec**. Un test volontairement défaillant, exécuté dans une branche de validation temporaire, serait nécessaire pour établir ce dernier point sans ambiguïté.
+**Validation avant cette amélioration :** lors de l'exécution [GitHub Actions du commit `ad56f23`](https://github.com/Soglo3006/tika/actions/runs/44054080092), le test `S3PipeIntegrationTest` a effectivement déclaré `Errors: 1`, en raison du refus HTTP 401 de l'image Docker MinIO. L'action Rickroll précédente s'était alors exécutée. Cela confirmait le fonctionnement de l'action, sans encore prouver que sa condition discriminait les échecs non liés aux tests.
+
+**Validation de la condition améliorée :** le résultat de la nouvelle exécution CI doit être vérifié sur le commit contenant le script de détection. Le comportement attendu est `test_failed=true` si un test Maven échoue et l'absence de Rickroll si aucune suite de tests ne contient de `failure` ou d'`error`. Les échecs d'installation ou de compilation ne doivent plus déclencher l'action.
 
 ## 6. Difficultés et validation Maven
 
@@ -132,7 +143,7 @@ Ces résultats ne signifient pas que l'intégralité de la suite Maven Linux a r
 
 ## 7. Conclusion
 
-L'analyse différentielle Semgrep est opérationnelle dans GitHub Actions : sans nouvelle détection le contrôle peut réussir, alors qu'après introduction des sept exemples, il identifie **7 résultats bloquants** et échoue avec le code 1. La comparaison locale totale de 35 à 42 détections corrobore ces sept ajouts. Une action Rickroll composite a été intégrée et déclenchée après échec Maven. Les limites portent sur l'isolement des exemples, la couverture des règles et l'absence de validation spécifique du Rickroll sur l'échec d'un test unitaire.
+L'analyse différentielle Semgrep est opérationnelle dans GitHub Actions : sans nouvelle détection le contrôle peut réussir, alors qu'après introduction des sept exemples, il identifie **7 résultats bloquants** et échoue avec le code 1. La comparaison locale totale de 35 à 42 détections corrobore ces sept ajouts. Une action Rickroll composite a été intégrée ; sa condition consulte désormais les rapports Maven afin de se déclencher seulement lorsqu'un cas de test échoue ou produit une erreur. Les limites restantes portent notamment sur l'isolement des exemples et la couverture des règles.
 
 ## 8. Assistance et références
 
