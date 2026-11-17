@@ -110,7 +110,7 @@ L'action composite est enregistrée dans `.github/actions/rickroll/action.yml`. 
 
 La condition initiale se basait uniquement sur l'échec de l'étape Maven. Elle a été améliorée afin de ne pas lancer le Rickroll pour les échecs sans rapport avec des tests, tels que Checkstyle, Forbidden APIs ou la compilation.
 
-Le script `.github/scripts/check_failed_tests.py` parcourt les rapports JUnit XML générés par Maven Surefire et Failsafe (`**/surefire-reports/TEST-*.xml` et `**/failsafe-reports/TEST-*.xml`). Il vérifie les attributs `failures` et `errors` des suites de tests. Si l'un d'eux est supérieur à zéro, le script définit la sortie GitHub Actions `test_failed=true`. Sinon, la sortie vaut `false`.
+Le script `.github/scripts/check_failed_tests.py` parcourt les résumés texte générés par Maven Surefire et Failsafe (`**/surefire-reports/*.txt` et `**/failsafe-reports/*.txt`). Il lit les nombres `Failures` et `Errors` dans les lignes `Tests run:`. Ce choix évite d'introduire un analyseur XML supplémentaire, qui avait généré une alerte Semgrep sans rapport avec les sept exemples Java. Si l'un d'eux est supérieur à zéro, le script définit la sortie GitHub Actions `test_failed=true`. Sinon, la sortie vaut `false`.
 
 Le workflow exécute ensuite :
 
@@ -131,7 +131,7 @@ La même logique s'applique au job E2E.
 
 **Validation avant cette amélioration :** lors de l'exécution [GitHub Actions du commit `ad56f23`](https://github.com/Soglo3006/tika/actions/runs/44054080092), le test `S3PipeIntegrationTest` a effectivement déclaré `Errors: 1`, en raison du refus HTTP 401 de l'image Docker MinIO. L'action Rickroll précédente s'était alors exécutée. Cela confirmait le fonctionnement de l'action, sans encore prouver que sa condition discriminait les échecs non liés aux tests.
 
-**Validation de la condition améliorée :** le résultat de la nouvelle exécution CI doit être vérifié sur le commit contenant le script de détection. Le comportement attendu est `test_failed=true` si un test Maven échoue et l'absence de Rickroll si aucune suite de tests ne contient de `failure` ou d'`error`. Les échecs d'installation ou de compilation ne doivent plus déclencher l'action.
+**Validation de la condition améliorée :** le job [GitHub Actions du commit de validation XML](https://github.com/Soglo3006/tika/actions/runs/44102857689/job/134107222872) a analysé 539 rapports Maven, identifié le test `S3PipeIntegrationTest` en erreur et exécuté le Rickroll après cette détection. Une dernière correction a remplacé l'analyse XML par la lecture des résumés texte afin d'éviter une huitième alerte Semgrep ; cette variante requiert une nouvelle validation CI. Le comportement attendu reste `test_failed=true` si un test Maven échoue et l'absence de Rickroll si aucune suite ne contient de `failure` ou d'`error`.
 
 ## 6. Difficultés et validation Maven
 
