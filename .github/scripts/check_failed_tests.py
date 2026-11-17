@@ -14,36 +14,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Report whether a Maven Surefire/Failsafe test case failed or errored."""
+"""Report whether Maven Surefire/Failsafe produced failed test cases.
+
+Read Maven's plain-text test summaries; no XML parser or extra dependency needed.
+"""
 import os
 from pathlib import Path
-import xml.etree.ElementTree as ET
+import re
 
+summary = re.compile(
+    r"Tests run:\s*\d+,\s*Failures:\s*(\d+),\s*Errors:\s*(\d+)"
+)
 failed_reports = []
 reports_scanned = 0
 
-for report in Path(".").rglob("TEST-*.xml"):
+for report in Path(".").rglob("*.txt"):
     if report.parent.name not in ("surefire-reports", "failsafe-reports"):
         continue
     reports_scanned += 1
     try:
-        root = ET.parse(report).getroot()
-    except (ET.ParseError, OSError) as exc:
-        print(f"Could not parse test report {report}: {exc}")
+        content = report.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        print(f"Could not read test report {report}: {exc}")
         continue
-    suites = [root] if root.tag.split("}")[-1] == "testsuite" else [
-        node for node in root.iter()
-        if node.tag.split("}")[-1] == "testsuite"
-    ]
     if any(
-        int(suite.get("failures", "0")) > 0
-        or int(suite.get("errors", "0")) > 0
-        for suite in suites
+        int(failures) > 0 or int(errors) > 0
+        for failures, errors in summary.findall(content)
     ):
         failed_reports.append(str(report))
 
 test_failed = bool(failed_reports)
-print(f"Inspected {reports_scanned} Maven test reports.")
+print(f"Inspected {reports_scanned} Maven test summaries.")
 if test_failed:
     for report in failed_reports:
         print(f"Test failure or error reported in: {report}")
