@@ -131,6 +131,8 @@ La même logique s'applique au job E2E.
 
 **Validation avant cette amélioration :** lors de l'exécution [GitHub Actions du commit `ad56f23`](https://github.com/Soglo3006/tika/actions/runs/44054080092), le test `S3PipeIntegrationTest` a effectivement déclaré `Errors: 1`, en raison du refus HTTP 401 de l'image Docker MinIO. L'action Rickroll précédente s'était alors exécutée. Cela confirmait le fonctionnement de l'action, sans encore prouver que sa condition discriminait les échecs non liés aux tests.
 
+**Contrôle Semgrep après correction du script :** sur [l'exécution de validation finale](https://github.com/Soglo3006/tika/actions/runs/44131949597/job/134211128473), Semgrep a confirmé **7 findings (7 blocking)** après remplacement de l'analyse XML par les résumés texte. Le fichier de détection ne crée donc plus une huitième alerte.
+
 **Validation de la condition améliorée :** le job [GitHub Actions du commit de validation XML](https://github.com/Soglo3006/tika/actions/runs/44102857689/job/134107222872) a analysé 539 rapports Maven, identifié le test `S3PipeIntegrationTest` en erreur et exécuté le Rickroll après cette détection. Une dernière correction a remplacé l'analyse XML par la lecture des résumés texte afin d'éviter une huitième alerte Semgrep ; cette variante requiert une nouvelle validation CI. Le comportement attendu reste `test_failed=true` si un test Maven échoue et l'absence de Rickroll si aucune suite ne contient de `failure` ou d'`error`.
 
 ## 6. Difficultés et validation Maven
