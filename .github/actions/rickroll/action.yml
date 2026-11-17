@@ -1,0 +1,11 @@
+name: Rickroll
+description: Rickroll when Maven tests fail
+
+runs:
+  using: composite
+  steps:
+    - name: Rickroll surprise
+      shell: bash
+      run: |
+        echo "::notice title=Rickroll::https://youtu.be/dQw4w9WgXcQ"
+        echo "A test failed. Rickroll activated!"

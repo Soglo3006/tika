@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 import org.apache.tika.extractor.DefaultEmbeddedStreamTranslator;
 import org.apache.tika.extractor.EmbeddedStreamTranslator;
@@ -32,8 +34,8 @@ import org.apache.tika.parser.ParseContext;
 /**
  * Utility class for computing digests on streams.
  * <p>
- * The DigesterFactory is retrieved from ParseContext. Configure it via
- * the "parse-context" section in tika-config.json:
+ * The DigesterFactory is retrieved from ParseContext.
+ * Configure it via the "parse-context" section in tika-config.json:
  * <pre>
  * "parse-context": {
  *   "commons-digester-factory": {
@@ -49,30 +51,33 @@ public class DigestHelper {
             new DefaultEmbeddedStreamTranslator();
 
     /**
-     * Computes digests on the stream if a DigesterFactory is configured in ParseContext.
-     * <p>
-     * This is called directly from AutoDetectParser.parse() before type detection.
+     * Computes digests on the stream if a DigesterFactory
+     * is configured in ParseContext.
      *
-     * @param tis      the TikaInputStream to digest
+     * @param tis the TikaInputStream to digest
      * @param metadata metadata to read depth from and write digests to
-     * @param context  parse context (should contain DigesterFactory, may contain SkipContainerDocumentDigest marker)
+     * @param context parse context
      * @throws IOException if an I/O error occurs
      */
     public static void maybeDigest(TikaInputStream tis,
                                    Metadata metadata,
                                    ParseContext context) throws IOException {
-        DigesterFactory digesterFactory = context.get(DigesterFactory.class);
+
+        DigesterFactory digesterFactory =
+                context.get(DigesterFactory.class);
 
         if (digesterFactory == null) {
             return;
         }
 
-        // Get skip setting from factory or ParseContext marker
-        boolean skipContainer = digesterFactory.isSkipContainerDocumentDigest()
+        boolean skipContainer =
+                digesterFactory.isSkipContainerDocumentDigest()
                 || SkipContainerDocumentDigest.shouldSkip(context);
 
         if (skipContainer) {
-            Integer depth = metadata.getInt(TikaCoreProperties.EMBEDDED_DEPTH);
+            Integer depth =
+                    metadata.getInt(TikaCoreProperties.EMBEDDED_DEPTH);
+
             if (depth == null || depth == 0) {
                 return;
             }
@@ -80,25 +85,52 @@ public class DigestHelper {
 
         Digester digester = digesterFactory.build();
 
-        // Handle embedded stream translation if needed (e.g., for OLE2 objects in TikaInputStream's
-        // open container). The translator consumes `tis` to produce the translated bytes that get
-        // digested, so we enableRewind() before and rewind() after — otherwise the caller (typically
-        // AutoDetectParser) would see an exhausted stream and fail its zero-byte probe (TIKA-XXXX).
         if (EMBEDDED_STREAM_TRANSLATOR.shouldTranslate(tis, metadata)) {
             tis.enableRewind();
+
             try (TemporaryResources tmp = new TemporaryResources()) {
                 Path tmpBytes = tmp.createTempFile();
+
                 try (OutputStream os = Files.newOutputStream(tmpBytes)) {
                     EMBEDDED_STREAM_TRANSLATOR.translate(tis, metadata, os);
                 }
-                try (TikaInputStream translated = TikaInputStream.get(tmpBytes)) {
+
+                try (TikaInputStream translated =
+                             TikaInputStream.get(tmpBytes)) {
                     digester.digest(translated, metadata, context);
                 }
+
             } finally {
                 tis.rewind();
             }
+
         } else {
             digester.digest(tis, metadata, context);
         }
+    }
+
+    // ============================================================
+    // IFT3913 - TACHE 3 - VULNERABILITE 1
+    // ============================================================
+    //
+    // Type : Cryptographie faible (SHA-1)
+    //
+    // Probleme :
+    // SHA-1 est un algorithme obsolete pour les usages
+    // necessitant une resistance aux collisions.
+    //
+    // Objectif :
+    // Verifier que Semgrep detecte l'utilisation de SHA-1.
+    //
+    // Cette methode est une demonstration isolee.
+    // Elle ne doit pas etre utilisee en production.
+    // ============================================================
+
+    static byte[] sha1Demo(byte[] input)
+            throws NoSuchAlgorithmException {
+
+        MessageDigest digest = MessageDigest.getInstance("SHA1");
+
+        return digest.digest(input);
     }
 }
